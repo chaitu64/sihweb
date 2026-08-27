@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
+
+numpy
+pillow
+opencv-python
+
+torch
+torchvision
+
+rasterio
