@@ -11,3 +11,5 @@ torch
 torchvision
 
 rasterio
+scikit-image
+matplotlib

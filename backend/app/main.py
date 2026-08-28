@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 
 from app.copernicus import get_access_token
+from app.validation_pipeline import process_image
 import requests
 
 
@@ -75,9 +76,9 @@ def get_sentinel_image(lat: float, lon: float):
 
         function setup() {
             return {
-                input: ["B02", "B03", "B04"],
+                input: ["B04", "B03", "B02", "B08"],
                 output: {
-                    bands: 3
+                    bands: 4
                 }
             };
         }
@@ -86,7 +87,8 @@ def get_sentinel_image(lat: float, lon: float):
             return [
                 2.5 * sample.B04,
                 2.5 * sample.B03,
-                2.5 * sample.B02
+                2.5 * sample.B02,
+                2.5 * sample.B08
             ];
         }
         """
@@ -148,10 +150,11 @@ def get_sentinel_image(lat: float, lon: float):
 
         response.raise_for_status()
 
-        return Response(
-            content=response.content,
-            media_type="image/png"
-        )
+        result = process_image(response.content)
+        return {
+            "success": True,
+            **result,
+        }
 
     except Exception as e:
         raise HTTPException(
