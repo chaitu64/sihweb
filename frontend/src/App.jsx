@@ -17,6 +17,7 @@ function App() {
   const [outputs, setOutputs] = useState(null);
   const [selectedOutput, setSelectedOutput] = useState("lr_input");
   const [metrics, setMetrics] = useState(null);
+  const [resultDetails, setResultDetails] = useState(null);
   const [validationReference, setValidationReference] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +28,21 @@ function App() {
     documentation: Documentation,
     about: About,
   };
+
+  const outputDefinitions = outputs ? [
+    ["lr_input", outputs.lr_input, "Low-resolution input", "LR Input"],
+    ["sr_output", outputs.sr_output, "AI super-resolution output", "AI SR Output"],
+    ["hr_reference", outputs.hr_reference, "Synthetic high-resolution reference", "HR Reference"],
+    ["ndvi", outputs.ndvi, "Enhanced NDVI map", "Enhanced NDVI"],
+    ["ndwi", outputs.ndwi, "Enhanced NDWI water map", "Enhanced NDWI"],
+    ["evi", outputs.evi, "Enhanced EVI map", "Enhanced EVI"],
+    ["vegetation_mask", outputs.vegetation_mask, "Vegetation candidate mask", "Vegetation Mask"],
+    ["water_mask", outputs.water_mask, "Water candidate mask", "Water Mask"],
+    ["error_map", outputs.error_map, "Pixel-wise reconstruction error map", "Error Map"],
+    ["flood_before", outputs.flood_before, "Configured before-period image", "Before"],
+    ["flood_ndwi_before", outputs.flood_ndwi_before, "Configured before-period NDWI", "Before NDWI"],
+    ["validation_dashboard", outputs.validation_dashboard, "Validation dashboard with metric values", "Validation Dashboard"],
+  ].filter((definition) => definition[1]) : [];
 
   async function fetchSentinelImage(selectedLatitude = latitude, selectedLongitude = longitude) {
     if (selectedLatitude === null || selectedLongitude === null) {
@@ -39,6 +55,7 @@ function App() {
     setOutputs(null);
     setSelectedOutput("lr_input");
     setMetrics(null);
+    setResultDetails(null);
 
     try {
       const response = await fetch(
@@ -54,6 +71,7 @@ function App() {
       setOutputs(result.outputs);
       setSelectedOutput("lr_input");
       setMetrics(result.metrics);
+      setResultDetails(result);
       setValidationReference(result.validation_reference || "");
     } catch (err) {
       console.error(err);
@@ -128,6 +146,7 @@ function App() {
       setOutputs(null);
       setSelectedOutput("lr_input");
       setMetrics(null);
+      setResultDetails(null);
       setValidationReference("");
       setError("");
       fetchSentinelImage(lat, lng);
@@ -188,6 +207,7 @@ function App() {
                 <div className="metric-card"><span>SSIM</span><strong>{metrics.ssim.toFixed(4)}</strong></div>
                 <div className="metric-card"><span>SAM</span><strong>{metrics.sam.toFixed(4)} rad</strong></div>
                 <div className="metric-card"><span>RMSE</span><strong>{metrics.rmse.toFixed(4)}</strong></div>
+                  <div className="metric-card"><span>MAE</span><strong>{metrics.mae.toFixed(4)}</strong></div>
               </div>
               <p className="validation-reference">{validationReference}</p>
             </section>
@@ -198,17 +218,10 @@ function App() {
               <h2>Validation Outputs</h2>
               <div className="output-viewer">
                 <div className="output-grid">
-                  {[
-                    ["lr_input", outputs.lr_input, "Low-resolution input", "LR Input"],
-                    ["sr_output", outputs.sr_output, "AI super-resolution output", "AI SR Output"],
-                    ["hr_reference", outputs.hr_reference, "Synthetic high-resolution reference", "HR Reference"],
-                    ["uncertainty_map", outputs.uncertainty_map, "Uncertainty map", "Uncertainty Map"],
-                    ["ndvi", outputs.ndvi, "Enhanced NDVI map", "Enhanced NDVI"],
-                    ["validation_dashboard", outputs.validation_dashboard, "Validation dashboard with metric values", "Validation Dashboard"],
-                  ].map(([key, src, alt, label]) => (
+                  {outputDefinitions.map(([key, src, alt, label]) => (
                     <figure
                       key={key}
-                      className={`output-figure${selectedOutput === key ? " is-selected" : ""}`}
+                      className={`output-figure${key === "validation_dashboard" ? " dashboard-output" : ""}${selectedOutput === key ? " is-selected" : ""}`}
                       onClick={() => setSelectedOutput(key)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -232,6 +245,82 @@ function App() {
                     alt="Selected validation output preview"
                   />
                 </div>
+                <section className="analysis-details" aria-live="polite">
+                  <h3>Analysis Details</h3>
+
+                  {metrics && (
+                    <div className="detail-block">
+                      <h4>Validation Comparison</h4>
+                      <div className="comparison-table" role="table" aria-label="SEN2SR and bicubic validation metrics">
+                        <div className="comparison-row comparison-heading" role="row">
+                          <span>Metric</span><span>SEN2SR</span><span>Bicubic</span>
+                        </div>
+                        {[["PSNR", "psnr", "dB"], ["SSIM", "ssim", ""], ["SAM", "sam", "rad"], ["RMSE", "rmse", ""], ["MAE", "mae", ""]].map(([label, key, unit]) => (
+                          <div className="comparison-row" role="row" key={key}>
+                            <span>{label}</span>
+                            <span>{Number(metrics[key]).toFixed(4)}{unit && ` ${unit}`}</span>
+                            <span>{metrics.bicubic ? `${Number(metrics.bicubic[key]).toFixed(4)}${unit ? ` ${unit}` : ""}` : "Unavailable"}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {metrics.per_band_rmse && (
+                        <div className="band-metrics">
+                          <strong>Per-band errors</strong>
+                          {metrics.per_band_rmse.map((value, index) => (
+                            <span key={`band-${index}`}>Band {index + 1}: RMSE {Number(value).toFixed(4)}, MAE {Number(metrics.per_band_mae[index]).toFixed(4)}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {resultDetails && (
+                    <>
+                      <div className="detail-block detail-grid">
+                        <div><h4>Model</h4><p>{resultDetails.model?.variant || "SEN2SRLite"} | {resultDetails.model?.device || "Device unavailable"}</p><p>{resultDetails.model?.internal_lr || 128}x{resultDetails.model?.internal_lr || 128} LR tiles | {resultDetails.model?.status || "Status unavailable"}</p></div>
+                      </div>
+
+                      {resultDetails.analytics && (
+                        <div className="detail-block">
+                          <h4>Crop and Urban Analytics</h4>
+                          <div className="stat-list">
+                            <span>NDVI mean: {resultDetails.analytics.ndvi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndvi_mean).toFixed(4)}</span>
+                            <span>Vegetation: {resultDetails.analytics.vegetation_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.vegetation_percentage).toFixed(2)}%`} (NDVI &gt; 0.30)</span>
+                            <span>Stress: {resultDetails.analytics.stress_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.stress_percentage).toFixed(2)}%`}</span>
+                            <span>NDWI mean: {resultDetails.analytics.ndwi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndwi_mean).toFixed(4)}</span>
+                            <span>Water: {resultDetails.analytics.water_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.water_percentage).toFixed(2)}%`} (NDWI &gt; 0.00)</span>
+                            <span>EVI mean: {resultDetails.analytics.evi_mean == null ? "Unavailable" : Number(resultDetails.analytics.evi_mean).toFixed(4)}</span>
+                          </div>
+                          <p>{resultDetails.analytics.stress_interpretation}</p>
+                        </div>
+                      )}
+
+                      {resultDetails.error_analysis && (
+                        <div className="detail-block">
+                          <h4>Error Analysis</h4>
+                          <div className="stat-list"><span>Mean error: {Number(resultDetails.error_analysis.mean_error).toFixed(4)}</span><span>Maximum error: {Number(resultDetails.error_analysis.maximum_error).toFixed(4)}</span><span>Reconstruction consistency error: {Number(resultDetails.error_analysis.reconstruction_consistency_error).toFixed(4)}</span></div>
+                        </div>
+                      )}
+
+                      {resultDetails.panel_mapping && (
+                        <div className="detail-block">
+                          <h4>Panel Mapping</h4>
+                          <div className="stat-list">
+                            {Object.entries(resultDetails.panel_mapping).map(([panel, product]) => <span key={panel}>{panel.replaceAll("_", " ")} - {product.replaceAll("_", " ")}</span>)}
+                          </div>
+                        </div>
+                      )}
+
+                      {resultDetails.interpretation && (
+                        <div className="detail-block interpretation-list">
+                          <h4>Interpretation</h4>
+                          {Object.entries(resultDetails.interpretation).map(([key, value]) => <p key={key}><strong>{key.replaceAll("_", " ")}:</strong> {value}</p>)}
+                        </div>
+                      )}
+                      <p className="validation-reference">{resultDetails.validation_reference}</p>
+                    </>
+                  )}
+                </section>
               </div>
             </section>
             )}

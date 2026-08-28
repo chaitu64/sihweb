@@ -104,6 +104,12 @@ Never upload the `.env` file to GitHub.
 uvicorn app.main:app --reload
 ```
 
+When running the command from the repository root instead, use:
+
+```powershell
+uvicorn backend.app.main:app --reload
+```
+
 The backend should start at:
 
 ```text

@@ -2,8 +2,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 
-from app.copernicus import get_access_token
-from app.validation_pipeline import process_image
+from .copernicus import get_access_token
+from .validation_pipeline import process_before_snapshot, process_image
 import requests
 
 
@@ -52,6 +52,32 @@ def test_auth():
             status_code=500,
             detail=str(e)
         )
+
+
+def _request_sentinel_product(token, bbox, start_date, end_date, bands):
+    band_list = ", ".join(f'"{band}"' for band in bands)
+    values = ", ".join(f"2.5 * sample.{band}" for band in bands)
+    payload = {
+        "input": {
+            "bounds": {"bbox": bbox, "properties": {"crs": "http://www.opengis.net/def/crs/EPSG/0/4326"}},
+            "data": [{"type": "sentinel-2-l2a", "dataFilter": {
+                "timeRange": {"from": f"{start_date}T00:00:00Z", "to": f"{end_date}T23:59:59Z"},
+                "maxCloudCoverage": 30,
+            }}],
+        },
+        "output": {"width": 512, "height": 512, "responses": [{"identifier": "default", "format": {"type": "image/png"}}]},
+        "evalscript": f"""//VERSION=3
+function setup() {{ return {{ input: [{band_list}], output: {{ bands: {len(bands)} }} }}; }}
+function evaluatePixel(sample) {{ return [{values}]; }}""",
+    }
+    response = requests.post(
+        "https://sh.dataspace.copernicus.eu/api/v1/process",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=60,
+    )
+    response.raise_for_status()
+    return response.content
 
 
 @app.get("/sentinel-image")
@@ -151,6 +177,12 @@ def get_sentinel_image(lat: float, lon: float):
         response.raise_for_status()
 
         result = process_image(response.content)
+        try:
+            before_image = _request_sentinel_product(token, bbox, "2023-02-01", "2023-02-28", ["B04", "B03", "B02", "B08"])
+            before_snapshot = process_before_snapshot(before_image)
+            result["outputs"].update(before_snapshot["outputs"])
+        except Exception:
+            pass
         return {
             "success": True,
             **result,

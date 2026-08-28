@@ -30,7 +30,7 @@ body {
   position: absolute;
   z-index: 4;
   top: 18px;
-  right: 64px;
+  right: 24px;
   display: flex;
   gap: 4px;
   padding: 4px;
@@ -282,7 +282,7 @@ body {
 
   .top-navigation {
     top: 10px;
-    right: 40px;
+    right: 10px;
     max-width: calc(100vw - 20px);
     overflow-x: auto;
   }
@@ -398,11 +398,11 @@ body {
   text-align: center;
 }
 
-.output-grid figure:last-child {
+.output-grid figure.dashboard-output {
   grid-column: 1 / -1;
 }
 
-.output-grid figure:last-child img {
+.output-grid figure.dashboard-output img {
   aspect-ratio: 5 / 1;
   object-fit: contain;
 }
@@ -431,6 +431,87 @@ body {
   height: auto;
 }
 
+.analysis-details {
+  margin-top: 14px;
+  padding: 14px 12px;
+  border-top: 1px solid #d9d9d9;
+  color: #555;
+  background: #fafafa;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.analysis-details h3,
+.analysis-details h4 {
+  margin: 0 0 8px;
+  color: #333;
+}
+
+.analysis-details h3 {
+  font-size: 15px;
+  text-align: center;
+}
+
+.analysis-details h4 {
+  font-size: 12px;
+}
+
+.detail-block {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #e3e3e3;
+}
+
+.detail-block p {
+  margin: 3px 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.comparison-table {
+  overflow: hidden;
+  border: 1px solid #e3e3e3;
+  background: #fff;
+}
+
+.comparison-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
+  padding: 5px 6px;
+  border-top: 1px solid #eee;
+}
+
+.comparison-row:first-child {
+  border-top: 0;
+}
+
+.comparison-heading {
+  color: #333;
+  background: #f1f1f1;
+  font-weight: 700;
+}
+
+.band-metrics,
+.stat-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 9px;
+}
+
+.band-metrics strong {
+  color: #333;
+}
+
+.interpretation-list strong {
+  color: #333;
+  text-transform: capitalize;
+}
+
 @media (max-width: 600px) {
   .selection-panel {
     width: min(250px, calc(100vw - 20px));
@@ -438,5 +519,9 @@ body {
 
   .selected-output {
     margin-top: 14px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
 }
