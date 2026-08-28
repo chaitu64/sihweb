@@ -39,8 +39,8 @@ function App() {
     ["vegetation_mask", outputs.vegetation_mask, "Vegetation candidate mask", "Vegetation Mask"],
     ["water_mask", outputs.water_mask, "Water candidate mask", "Water Mask"],
     ["error_map", outputs.error_map, "Pixel-wise reconstruction error map", "Error Map"],
-    ["flood_before", outputs.flood_before, "Configured before-period image", "Before"],
-    ["flood_ndwi_before", outputs.flood_ndwi_before, "Configured before-period NDWI", "Before NDWI"],
+    ["flood_before", outputs.flood_before, "Configured before-period image", "Before Flood Analysis"],
+    ["flood_ndwi_before", outputs.flood_ndwi_before, "Configured before-period NDWI", "Before NDWI Analysis"],
     ["validation_dashboard", outputs.validation_dashboard, "Validation dashboard with metric values", "Validation Dashboard"],
   ].filter((definition) => definition[1]) : [];
 
@@ -182,149 +182,181 @@ function App() {
           ))}
         </nav>
 
-        {activePage === "home" && <aside className="selection-panel">
-          <>
-            <div className="brand-mark">GeoSR-AI</div>
-            <p className="eyebrow">Deep Learning Satellite Super Resolution</p>
-            <h1>Select Location</h1>
-            <p className="instruction">Click anywhere on the map to fetch Sentinel-2 imagery.</p>
+        {activePage === "home" && <aside className={`selection-panel ${outputs ? "has-data" : "initial"}`}>
+          {!outputs ? (
+            <div className="initial-state">
+              <div className="brand-mark">GeoSR-AI</div>
+              <p className="eyebrow">Deep Learning Satellite Super Resolution</p>
+              <h1>Select Location</h1>
+              <p className="instruction">Click anywhere on the map to fetch Sentinel-2 imagery.</p>
 
-            {latitude !== null ? (
-              <div className="coordinates">
-                <div className="coordinate-card"><span>Latitude</span><strong>{latitude.toFixed(6)}</strong></div>
-                <div className="coordinate-card"><span>Longitude</span><strong>{longitude.toFixed(6)}</strong></div>
-              </div>
-            ) : <div className="no-selection">Click on the map to select a location.</div>}
-
-            {loading && <div className="loading-message">Fetching Sentinel-2 image...</div>}
-            {error && <div className="error-message">{error}</div>}
-
-          {metrics && (
-            <section className="metrics-section">
-              <h2>Validation Metrics</h2>
-              <div className="metrics-grid">
-                <div className="metric-card"><span>PSNR</span><strong>{metrics.psnr.toFixed(2)} dB</strong></div>
-                <div className="metric-card"><span>SSIM</span><strong>{metrics.ssim.toFixed(4)}</strong></div>
-                <div className="metric-card"><span>SAM</span><strong>{metrics.sam.toFixed(4)} rad</strong></div>
-                <div className="metric-card"><span>RMSE</span><strong>{metrics.rmse.toFixed(4)}</strong></div>
-                  <div className="metric-card"><span>MAE</span><strong>{metrics.mae.toFixed(4)}</strong></div>
-              </div>
-              <p className="validation-reference">{validationReference}</p>
-            </section>
-          )}
-
-            {outputs && (
-            <section className="result-section">
-              <h2>Validation Outputs</h2>
-              <div className="output-viewer">
-                <div className="output-grid">
-                  {outputDefinitions.map(([key, src, alt, label]) => (
-                    <figure
-                      key={key}
-                      className={`output-figure${key === "validation_dashboard" ? " dashboard-output" : ""}${selectedOutput === key ? " is-selected" : ""}`}
-                      onClick={() => setSelectedOutput(key)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setSelectedOutput(key);
-                        }
-                      }}
-                      tabIndex="0"
-                      role="button"
-                      aria-pressed={selectedOutput === key}
-                    >
-                      <img src={src} alt={alt} />
-                      <figcaption>{label}</figcaption>
-                    </figure>
-                  ))}
+              {latitude !== null ? (
+                <div className="coordinates">
+                  <div className="coordinate-card"><span>Latitude</span><strong>{latitude.toFixed(6)}</strong></div>
+                  <div className="coordinate-card"><span>Longitude</span><strong>{longitude.toFixed(6)}</strong></div>
                 </div>
+              ) : <div className="no-selection">Click on the map to select a location.</div>}
+
+              {loading && <div className="loading-message">Fetching Sentinel-2 image...</div>}
+              {error && <div className="error-message">{error}</div>}
+            </div>
+          ) : (
+            <div className="dashboard-layout">
+              {/* Column 1: Input (Ratio 3) */}
+              <div className="input-column">
+                <div className="selected-output input-fixed">
+                  <span className="selected-output-label">Input (LR)</span>
+                  <div className="image-wrapper">
+                    <img
+                      src={outputs.lr_input}
+                      alt="Low-resolution input image"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Column 2: Selected Output + Grid (Ratio 4) */}
+              <div className="output-column">
+                <div className="output-grid-scroll">
+                  <div className="output-grid">
+                    {outputDefinitions.map(([key, src, alt, label]) => (
+                      <figure
+                        key={key}
+                        className={`output-figure ${selectedOutput === key ? "is-selected" : ""}`}
+                        onClick={() => setSelectedOutput(key)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedOutput(key);
+                          }
+                        }}
+                        tabIndex="0"
+                        role="button"
+                        aria-pressed={selectedOutput === key}
+                      >
+                        <img src={src} alt={alt} />
+                        <figcaption>{label}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="selected-output">
-                  <span className="selected-output-label">Selected preview</span>
-                  <img
-                    src={outputs[selectedOutput]}
-                    alt="Selected validation output preview"
-                  />
+                  <span className="selected-output-label">{outputDefinitions.find(d => d[0] === selectedOutput)?.[3] || "Preview"}</span>
+                  <div className="image-wrapper">
+                    <img
+                      src={outputs[selectedOutput]}
+                      alt="Selected validation output preview"
+                    />
+                  </div>
                 </div>
-                <section className="analysis-details" aria-live="polite">
-                  <h3>Analysis Details</h3>
+              </div>
 
+              <div className="data-column">
+                <div className="data-header">
+                   <h2>Analysis Dashboard</h2>
+                   <div className="coordinates horizontal">
+                     <span className="coord-chip">Lat: <strong>{latitude.toFixed(6)}</strong></span>
+                     <span className="coord-chip">Lng: <strong>{longitude.toFixed(6)}</strong></span>
+                   </div>
+                </div>
+
+                <div className="data-scroll-area">
+                  {loading && <div className="loading-message">Refreshing data...</div>}
+                  {error && <div className="error-message">{error}</div>}
+                  
                   {metrics && (
-                    <div className="detail-block">
-                      <h4>Validation Comparison</h4>
-                      <div className="comparison-table" role="table" aria-label="SEN2SR and bicubic validation metrics">
-                        <div className="comparison-row comparison-heading" role="row">
-                          <span>Metric</span><span>SEN2SR</span><span>Bicubic</span>
-                        </div>
-                        {[["PSNR", "psnr", "dB"], ["SSIM", "ssim", ""], ["SAM", "sam", "rad"], ["RMSE", "rmse", ""], ["MAE", "mae", ""]].map(([label, key, unit]) => (
-                          <div className="comparison-row" role="row" key={key}>
-                            <span>{label}</span>
-                            <span>{Number(metrics[key]).toFixed(4)}{unit && ` ${unit}`}</span>
-                            <span>{metrics.bicubic ? `${Number(metrics.bicubic[key]).toFixed(4)}${unit ? ` ${unit}` : ""}` : "Unavailable"}</span>
-                          </div>
-                        ))}
+                    <section className="metrics-section">
+                      <h3>Validation Metrics</h3>
+                      <div className="metrics-grid">
+                        <div className="metric-card"><span>PSNR</span><strong>{metrics.psnr.toFixed(2)} dB</strong></div>
+                        <div className="metric-card"><span>SSIM</span><strong>{metrics.ssim.toFixed(4)}</strong></div>
+                        <div className="metric-card"><span>SAM</span><strong>{metrics.sam.toFixed(4)} rad</strong></div>
+                        <div className="metric-card"><span>RMSE</span><strong>{metrics.rmse.toFixed(4)}</strong></div>
+                        <div className="metric-card"><span>MAE</span><strong>{metrics.mae.toFixed(4)}</strong></div>
                       </div>
-                      {metrics.per_band_rmse && (
-                        <div className="band-metrics">
-                          <strong>Per-band errors</strong>
-                          {metrics.per_band_rmse.map((value, index) => (
-                            <span key={`band-${index}`}>Band {index + 1}: RMSE {Number(value).toFixed(4)}, MAE {Number(metrics.per_band_mae[index]).toFixed(4)}</span>
+                      <p className="validation-reference">{validationReference}</p>
+                    </section>
+                  )}
+
+                  <section className="analysis-details" aria-live="polite">
+                    {metrics && (
+                      <div className="detail-block">
+                        <h4>Validation Comparison</h4>
+                        <div className="comparison-table" role="table">
+                          <div className="comparison-row comparison-heading" role="row">
+                            <span>Metric</span><span>SEN2SR</span><span>Bicubic</span>
+                          </div>
+                          {[["PSNR", "psnr", "dB"], ["SSIM", "ssim", ""], ["SAM", "sam", "rad"], ["RMSE", "rmse", ""], ["MAE", "mae", ""]].map(([label, key, unit]) => (
+                            <div className="comparison-row" role="row" key={key}>
+                              <span>{label}</span>
+                              <span>{Number(metrics[key]).toFixed(4)}{unit && ` ${unit}`}</span>
+                              <span>{metrics.bicubic ? `${Number(metrics.bicubic[key]).toFixed(4)}${unit ? ` ${unit}` : ""}` : "Unavailable"}</span>
+                            </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {resultDetails && (
-                    <>
-                      <div className="detail-block detail-grid">
-                        <div><h4>Model</h4><p>{resultDetails.model?.variant || "SEN2SRLite"} | {resultDetails.model?.device || "Device unavailable"}</p><p>{resultDetails.model?.internal_lr || 128}x{resultDetails.model?.internal_lr || 128} LR tiles | {resultDetails.model?.status || "Status unavailable"}</p></div>
+                        {metrics.per_band_rmse && (
+                          <div className="band-metrics">
+                            <strong>Per-band errors</strong>
+                            {metrics.per_band_rmse.map((value, index) => (
+                              <span key={`band-${index}`}>Band {index + 1}: RMSE {Number(value).toFixed(4)}, MAE {Number(metrics.per_band_mae[index]).toFixed(4)}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
+                    )}
 
-                      {resultDetails.analytics && (
-                        <div className="detail-block">
-                          <h4>Crop and Urban Analytics</h4>
-                          <div className="stat-list">
-                            <span>NDVI mean: {resultDetails.analytics.ndvi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndvi_mean).toFixed(4)}</span>
-                            <span>Vegetation: {resultDetails.analytics.vegetation_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.vegetation_percentage).toFixed(2)}%`} (NDVI &gt; 0.30)</span>
-                            <span>Stress: {resultDetails.analytics.stress_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.stress_percentage).toFixed(2)}%`}</span>
-                            <span>NDWI mean: {resultDetails.analytics.ndwi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndwi_mean).toFixed(4)}</span>
-                            <span>Water: {resultDetails.analytics.water_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.water_percentage).toFixed(2)}%`} (NDWI &gt; 0.00)</span>
-                            <span>EVI mean: {resultDetails.analytics.evi_mean == null ? "Unavailable" : Number(resultDetails.analytics.evi_mean).toFixed(4)}</span>
+                    {resultDetails && (
+                      <>
+                        <div className="detail-block detail-grid">
+                          <div><h4>Model</h4><p>{resultDetails.model?.variant || "SEN2SRLite"} | {resultDetails.model?.device || "Device unavailable"}</p><p>{resultDetails.model?.internal_lr || 128}x{resultDetails.model?.internal_lr || 128} LR tiles | {resultDetails.model?.status || "Status unavailable"}</p></div>
+                        </div>
+
+                        {resultDetails.analytics && (
+                          <div className="detail-block">
+                            <h4>Crop and Urban Analytics</h4>
+                            <div className="stat-list">
+                              <span>NDVI mean: {resultDetails.analytics.ndvi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndvi_mean).toFixed(4)}</span>
+                              <span>Vegetation: {resultDetails.analytics.vegetation_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.vegetation_percentage).toFixed(2)}%`} (NDVI &gt; 0.30)</span>
+                              <span>Stress: {resultDetails.analytics.stress_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.stress_percentage).toFixed(2)}%`}</span>
+                              <span>NDWI mean: {resultDetails.analytics.ndwi_mean == null ? "Unavailable" : Number(resultDetails.analytics.ndwi_mean).toFixed(4)}</span>
+                              <span>Water: {resultDetails.analytics.water_percentage == null ? "Unavailable" : `${Number(resultDetails.analytics.water_percentage).toFixed(2)}%`} (NDWI &gt; 0.00)</span>
+                              <span>EVI mean: {resultDetails.analytics.evi_mean == null ? "Unavailable" : Number(resultDetails.analytics.evi_mean).toFixed(4)}</span>
+                            </div>
+                            <p className="interpretation-text">{resultDetails.analytics.stress_interpretation}</p>
                           </div>
-                          <p>{resultDetails.analytics.stress_interpretation}</p>
-                        </div>
-                      )}
+                        )}
 
-                      {resultDetails.error_analysis && (
-                        <div className="detail-block">
-                          <h4>Error Analysis</h4>
-                          <div className="stat-list"><span>Mean error: {Number(resultDetails.error_analysis.mean_error).toFixed(4)}</span><span>Maximum error: {Number(resultDetails.error_analysis.maximum_error).toFixed(4)}</span><span>Reconstruction consistency error: {Number(resultDetails.error_analysis.reconstruction_consistency_error).toFixed(4)}</span></div>
-                        </div>
-                      )}
-
-                      {resultDetails.panel_mapping && (
-                        <div className="detail-block">
-                          <h4>Panel Mapping</h4>
-                          <div className="stat-list">
-                            {Object.entries(resultDetails.panel_mapping).map(([panel, product]) => <span key={panel}>{panel.replaceAll("_", " ")} - {product.replaceAll("_", " ")}</span>)}
+                        {resultDetails.error_analysis && (
+                          <div className="detail-block">
+                            <h4>Error Analysis</h4>
+                            <div className="stat-list"><span>Mean error: {Number(resultDetails.error_analysis.mean_error).toFixed(4)}</span><span>Maximum error: {Number(resultDetails.error_analysis.maximum_error).toFixed(4)}</span><span>Reconstruction consistency error: {Number(resultDetails.error_analysis.reconstruction_consistency_error).toFixed(4)}</span></div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {resultDetails.interpretation && (
-                        <div className="detail-block interpretation-list">
-                          <h4>Interpretation</h4>
-                          {Object.entries(resultDetails.interpretation).map(([key, value]) => <p key={key}><strong>{key.replaceAll("_", " ")}:</strong> {value}</p>)}
-                        </div>
-                      )}
-                      <p className="validation-reference">{resultDetails.validation_reference}</p>
-                    </>
-                  )}
-                </section>
+                        {resultDetails.panel_mapping && (
+                          <div className="detail-block">
+                            <h4>Panel Mapping</h4>
+                            <div className="stat-list">
+                              {Object.entries(resultDetails.panel_mapping).map(([panel, product]) => <span key={panel}>{panel.replaceAll("_", " ")} - {product.replaceAll("_", " ")}</span>)}
+                            </div>
+                          </div>
+                        )}
+
+                        {resultDetails.interpretation && (
+                          <div className="detail-block interpretation-list">
+                            <h4>Interpretation</h4>
+                            {Object.entries(resultDetails.interpretation).map(([key, value]) => <p key={key}><strong>{key.replaceAll("_", " ")}:</strong> {value}</p>)}
+                          </div>
+                        )}
+                        <p className="validation-reference">{resultDetails.validation_reference}</p>
+                      </>
+                    )}
+                  </section>
+                </div>
               </div>
-            </section>
-            )}
-          </>
+            </div>
+          )}
         </aside>}
 
         {activePage !== "home" && <main className="page-view">
