@@ -10,7 +10,10 @@ opencv-python
 torch
 torchvision
 mlstac
+sen2sr
+einops
+timm
 
 rasterio
 scikit-image
-matplotlib
+matplotlib

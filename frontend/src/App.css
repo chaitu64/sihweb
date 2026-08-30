@@ -111,6 +111,10 @@ body {
   margin: 0 auto;
 }
 
+.page-view .info-page.wide {
+  width: min(1500px, 100%);
+}
+
 .info-page h1 {
   margin-bottom: 16px;
 }

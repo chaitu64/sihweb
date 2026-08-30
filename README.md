@@ -82,19 +82,23 @@ You can optionally verify the installed packages using:
 pip list
 ```
 
-5. **Configure Copernicus credentials:** Inside the `backend` folder, create a `.env` file and add the Copernicus credentials using the environment variable names expected by `copernicus.py`. For example:
-
-```env
-COPERNICUS_USERNAME=your_username
-COPERNICUS_PASSWORD=your_password
-```
-
-Or, if your implementation uses OAuth client credentials:
+5. **Configure Copernicus credentials:** The backend accepts either the OAuth client-credentials flow or the username/password flow. Store the values in `backend/.env` or the repo-root `.env`:
 
 ```env
 COPERNICUS_CLIENT_ID=your_client_id
 COPERNICUS_CLIENT_SECRET=your_client_secret
 ```
+
+Or, for the username/password flow:
+
+```env
+COPERNICUS_USERNAME=your_username
+COPERNICUS_PASSWORD=your_password
+COPERNICUS_CLIENT_ID=your_client_id
+COPERNICUS_CLIENT_SECRET=your_client_secret
+```
+
+If you use a different variable naming style, the app will also fall back to `CLIENT_ID`, `CLIENT_SECRET`, `USERNAME`, and `PASSWORD`.
 
 Never upload the `.env` file to GitHub.
 

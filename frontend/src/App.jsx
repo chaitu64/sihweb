@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
-import About from "./pages/About";
 import Documentation from "./pages/Documentation";
 import Research from "./pages/Research";
 
@@ -26,7 +25,6 @@ function App() {
   const pageComponents = {
     research: Research,
     documentation: Documentation,
-    about: About,
   };
 
   const outputDefinitions = outputs ? [
@@ -39,10 +37,12 @@ function App() {
     ["vegetation_mask", outputs.vegetation_mask, "Vegetation candidate mask", "Vegetation Mask"],
     ["water_mask", outputs.water_mask, "Water candidate mask", "Water Mask"],
     ["error_map", outputs.error_map, "Pixel-wise reconstruction error map", "Error Map"],
+    ["enhancement_diff", outputs.enhancement_diff, "SR enhancement difference", "Enhancement Diff"],
+    ["confidence_proxy", outputs.confidence_proxy, "Confidence proxy map", "Confidence Proxy"],
     ["flood_before", outputs.flood_before, "Configured before-period image", "Before Flood Analysis"],
     ["flood_ndwi_before", outputs.flood_ndwi_before, "Configured before-period NDWI", "Before NDWI Analysis"],
-    ["validation_dashboard", outputs.validation_dashboard, "Validation dashboard with metric values", "Validation Dashboard"],
   ].filter((definition) => definition[1]) : [];
+
 
   async function fetchSentinelImage(selectedLatitude = latitude, selectedLongitude = longitude) {
     if (selectedLatitude === null || selectedLongitude === null) {
@@ -170,7 +170,7 @@ function App() {
         />
 
         <nav className="top-navigation" aria-label="Main navigation">
-          {["home", "research", "documentation", "about"].map((page) => (
+          {["home", "research", "documentation"].map((page) => (
             <button
               key={page}
               className={activePage === page ? "is-active" : ""}
@@ -360,7 +360,7 @@ function App() {
         </aside>}
 
         {activePage !== "home" && <main className="page-view">
-          <div className="info-page">
+          <div className={`info-page ${activePage === "research" || activePage === "documentation" ? "wide" : ""}`}>
             <div className="brand-mark">GeoSR-AI</div>
             {(() => {
               const Page = pageComponents[activePage];
