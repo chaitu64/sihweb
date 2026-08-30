@@ -223,10 +223,11 @@ def process_before_snapshot(before_bytes: bytes) -> dict[str, Any]:
             "flood_before": _png_data_url(_stretch(before_sr[:3].transpose(1, 2, 0))),
             "flood_ndwi_before": _gray_png_data_url(before_ndwi, "Blues", -1.0, 1.0),
         },
+        "before_ndwi": before_ndwi,
     }
 
 
-def process_image(image_bytes: bytes) -> dict[str, Any]:
+def process_image(image_bytes: bytes, before_bytes: bytes | None = None) -> dict[str, Any]:
     reference = _decode_reference(image_bytes)
     if reference.shape[0] < 4:
         reference = torch.cat((reference, reference[:1]), dim=0)
@@ -238,6 +239,16 @@ def process_image(image_bytes: bytes) -> dict[str, Any]:
     sr_np = sr_output.detach().cpu().numpy()
     bicubic_np = bicubic.detach().cpu().numpy()
     reference_np = reference.detach().cpu().numpy()
+    
+    # Enhancement difference |SR - Bicubic|
+    enhancement_diff = np.mean(np.abs(sr_np[:3] - bicubic_np[:3]), axis=0).astype(np.float32)
+    ed_finite = enhancement_diff[np.isfinite(enhancement_diff)]
+    if ed_finite.size > 0:
+        ed_min, ed_max = float(np.min(ed_finite)), float(np.max(ed_finite))
+        confidence_proxy = 1.0 - ((enhancement_diff - ed_min) / (ed_max - ed_min + 1e-8))
+    else:
+        confidence_proxy = np.full_like(enhancement_diff, np.nan)
+
     red, green, blue, nir = sr_np[:4]
     ndvi = _index(nir, red)
     ndwi = _index(green, nir)
@@ -253,7 +264,7 @@ def process_image(image_bytes: bytes) -> dict[str, Any]:
         "ndvi_mean": float(np.nanmean(ndvi)) if valid_ndvi.any() else None,
         "vegetation_percentage": float(100 * vegetation_mask.sum() / valid_count),
         "stress_percentage": float(100 * stress_mask.sum() / valid_count),
-        "stress_interpretation": "Heuristic: 0.1 < NDVI <= 0.30; not a universal crop-health boundary.",
+        "stress_interpretation": "Heuristic: 0.1 < NDVI <= 0.30; relative indicator, not an absolute biomass boundary.",
         "ndwi_mean": float(np.nanmean(ndwi)) if np.isfinite(ndwi).any() else None,
         "water_percentage": float(100 * water_mask.sum() / valid_count),
         "evi_mean": float(np.nanmean(evi)) if np.isfinite(evi).any() else None,
@@ -268,11 +279,31 @@ def process_image(image_bytes: bytes) -> dict[str, Any]:
         "ndvi": _gray_png_data_url(ndvi, "YlGn", -1.0, 1.0),
         "validation_dashboard": _dashboard_data_url(lr_display, sr_display, reference_display, ndvi, metrics),
         "error_map": _gray_png_data_url(error_map, "inferno"),
+        "enhancement_diff": _gray_png_data_url(enhancement_diff, "magma"),
+        "confidence_proxy": _gray_png_data_url(confidence_proxy, "cividis", 0.0, 1.0),
         "ndwi": _gray_png_data_url(ndwi, "Blues", -1.0, 1.0),
         "evi": _gray_png_data_url(evi, "YlGn", -1.0, 1.0),
         "vegetation_mask": _gray_png_data_url(vegetation_mask.astype(np.float32), "YlGn", 0.0, 1.0),
         "water_mask": _gray_png_data_url(water_mask.astype(np.float32), "Blues", 0.0, 1.0),
     }
+
+    if before_bytes:
+        try:
+            before_res = process_before_snapshot(before_bytes)
+            outputs.update(before_res["outputs"])
+            before_ndwi = before_res.get("before_ndwi")
+            if before_ndwi is not None:
+                diff_ndwi = np.clip(ndwi - before_ndwi, -1.0, 1.0)
+                flood_candidate = np.where(np.isfinite(diff_ndwi), diff_ndwi > 0.20, False)
+                outputs["flood_diff_map"] = _gray_png_data_url(diff_ndwi, "RdBu", -1.0, 1.0)
+                outputs["flood_mask"] = _gray_png_data_url(flood_candidate.astype(np.float32), "Blues", 0.0, 1.0)
+                valid_diff = np.isfinite(diff_ndwi)
+                v_cnt = max(int(valid_diff.sum()), 1)
+                analytics["flood_changed_percentage"] = float(100.0 * flood_candidate.sum() / v_cnt)
+                analytics["flood_changed_area_km2"] = float(flood_candidate.sum() * ((2.5 / 1000.0) ** 2))
+        except Exception:
+            pass
+
     return {
         "outputs": outputs,
         "metrics": {**metrics, "bicubic": bicubic_metrics},
@@ -283,6 +314,8 @@ def process_image(image_bytes: bytes) -> dict[str, Any]:
             "ndvi": "ndvi",
             "validation_dashboard": "validation_dashboard",
             "error": "error_map",
+            "enhancement_diff": "enhancement_diff",
+            "confidence_proxy": "confidence_proxy",
             "ndwi": "ndwi",
             "evi": "evi",
             "before": "flood_before",
@@ -296,12 +329,15 @@ def process_image(image_bytes: bytes) -> dict[str, Any]:
         },
         "interpretation": {
             "sr_output": "SEN2SR produces a model-reconstructed ~2.5m-equivalent representation, not an observed 2.5m sensor image.",
-            "ndvi": "NDVI indicates relative vegetation density; its threshold is configurable and heuristic.",
-            "ndwi": "NDWI highlights water/open-water candidates.",
-            "error_map": "The error map represents reconstruction disagreement against the available reference.",
-            "before": "Before snapshot rendered from the configured earlier Sentinel-2 period.",
-            "before_ndwi": "Before NDWI highlights water/open-water candidates for the earlier period.",
+            "ndvi": "NDVI indicates relative vegetation density; higher values reflect denser canopy.",
+            "ndwi": "NDWI (McFeeters) highlights open water and surface moisture.",
+            "error_map": "Error Map displays pixel-wise RMSE between SR reconstruction and native 10m reference.",
+            "enhancement_diff": "SR Enhancement Difference (|SR - Bicubic|) shows where SEN2SR resolved high frequency details.",
+            "confidence_proxy": "Heuristic confidence proxy (uncalibrated) inverse to enhancement deviation.",
+            "before": "Before snapshot rendered from configured baseline Sentinel-2 period.",
+            "before_ndwi": "Before NDWI highlights water/open-water candidates for the baseline period.",
         },
-        "validation_reference": "Synthetic validation: the API image is treated as the available reference; no independent 2.5m ground truth is claimed.",
+        "validation_reference": "Synthetic self-consistency validation: native Sentinel-2 10m tile is treated as the reference target under controlled degradation.",
         "model": {"variant": MODEL_VARIANT, "device": str(DEVICE), "status": MODEL_STATUS or "loaded", "internal_lr": MODEL_INTERNAL_LR},
     }
+
