@@ -59,7 +59,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/sentinel-image?lat=${selectedLatitude}&lon=${selectedLongitude}`
+        `https://geosr-ai-6t9n.onrender.com/sentinel-image?lat=${selectedLatitude}&lon=${selectedLongitude}`
       );
 
       if (!response.ok) {
